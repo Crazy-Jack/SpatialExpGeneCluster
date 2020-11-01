@@ -18,10 +18,11 @@ def set_args():
     parser.add_argument('--dataset', type=str, required=True, help="which dataset do you want")
     parser.add_argument('--data_root', type=str, default="../data/")
     parser.add_argument('--save_root', type=str, default="../train_related/")
+    
 
     # train parameters
     parser.add_argument('--batch_size', type=int, default=256, help="batch")
-    parser.add_argumnet('--num_workers', type=int, default=3, help="number of workers to use \
+    parser.add_argument('--num_workers', type=int, default=3, help="number of workers to use \
                                                                     for data loading")
     parser.add_argument('--epochs', type=int, default=200, help="total epochs")
 
@@ -37,10 +38,16 @@ def set_args():
 
     # model
     parser.add_argument('--model', type=str, default='resnet18', help="what model we choose")
-
+    parser.add_argument('--input_channel', type=int, default=7, help="input channels")
+    parser.add_argument('--feature_dim', type=int, default=2048, help="only support 2048 for now")
+    parser.add_argument('--latent_class_num', type=int, default=100)
 
     # pretrain
+    parser.add_argument('--pretrain_mode', type=str, default="autoencoder")
 
+
+    # resume path
+    parser.add_argument('--resume_model_path', type=str, default='', help="resume model path")
     # parse args
     args = parser.parse_args()
     
@@ -121,3 +128,51 @@ def init_weights(m):
     if type(m) == nn.Linear:
         torch.nn.init.xavier_uniform_(m.weight)
         m.bias.data.fill_(0.00)
+
+
+class txt_logger:
+    def __init__(self, save_folder, args, argv):
+        self.save_folder = save_folder
+        self.logger = logging.getLogger()
+        self.logger.setLevel(logging.INFO)
+
+        if os.path.isfile(os.path.join(save_folder, 'logfile.log')):
+            os.remove(os.path.join(save_folder, 'logfile.log'))
+
+        file_log_handler = logging.FileHandler(os.path.join(save_folder, 'logfile.log'))
+        self.logger.addHandler(file_log_handler)
+
+        stdout_log_handler = logging.StreamHandler(sys.stdout)
+        self.logger.addHandler(stdout_log_handler)
+        # commend line
+        self.logger.info("# COMMEND LINE ===========")
+        self.logger.info(argv)
+        self.logger.info("# =====================")
+        # meta info
+        self.logger.info("# META INFO ===========")
+        attrs = vars(args)
+        for item in attrs.items():
+            self.logger.info("%s: %s"%item)
+        # self.logger.info("Saved in: {}".format(save_folder))
+        self.logger.info("# =====================")
+
+    def log_value(self, epoch, *info_pairs):
+        log_str = "Epoch: {}; ".format(epoch)
+        for name, value in info_pairs:
+            log_str += (str(name) + ": {}; ").format(value)
+        self.logger.info(log_str)
+
+    def save_value(self, name, list_of_values):
+        np.save(os.path.join(self.save_folder, name), list_of_values)
+
+
+def save_model(model, optimizer, opt, epoch, save_file):
+    print('==> Saving...')
+    state = {
+        'opt': opt,
+        'model': model.state_dict(),
+        'optimizer': optimizer.state_dict(),
+        'epoch': epoch,
+    }
+    torch.save(state, save_file)
+    del state

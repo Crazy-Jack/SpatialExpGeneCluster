@@ -6,6 +6,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 
+from .resnet_deconv import ResNet18, DecovResNet18
+
 class GELU(nn.Module):
     """Applies the Gaussian Error Linear Units function:
 
@@ -31,7 +33,7 @@ class GELU(nn.Module):
 
 
 class DECNetwork(nn.Module):
-    def __init__(self, input_channel, feature_dim, latent_class_num, layer_dims=[500, 500, 2000], alpha=1.0, decode_constraint=False):
+    def __init__(self, input_channel, feature_dim, latent_class_num, alpha=1.0, decode_constraint=False):
         '''
         temporarily hard-code layer_dims to have length of 3
         '''
@@ -44,11 +46,11 @@ class DECNetwork(nn.Module):
         self.alpha = alpha
         self.clusterCenter = nn.Parameter(torch.zeros(latent_class_num, feature_dim))
 
-        self.encoder = torchvision.models.resnet50(pretrained=False, progress=True, **kwargs)
-        self.encoder.conv1 = torch.nn.Conv1d(self.input_channel, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.encoder = ResNet18()
+        self.encoder_shape_before_avgpool = (2048, 1, 1) # for input size (bs, 7, 32, 32); \
+                                                         # will be (2048, 2, 2) for input size (bs, 7, 64, 64)
         
-        self.decoder = torchvision.models.resnet50(pretrained=False, progress=True, **kwargs)
-        self.decoder.conv1 = torch.nn.Conv1d(self.input_channel, 64, kernel_size=7, stride=2, padding=3, bias=False)
+        self.decoder = DecovResNet18(encoder_shape_before_avgpool, img_channel=input_channel)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
@@ -69,7 +71,7 @@ class DECNetwork(nn.Module):
         assert self.pretrainMode == True
 
         self.clusterCenter.data = torch.from_numpy(cc)
-        print("CLUSTER CENTER: ", self.clusterCenter.data)
+        # print("CLUSTER CENTER: ", self.clusterCenter.data)
 
     def getTDistribution(self, x, clusterCenter):
         """
