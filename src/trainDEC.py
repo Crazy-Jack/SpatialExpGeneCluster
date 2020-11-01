@@ -3,11 +3,15 @@ import os, sys
 
 import torch
 import torch.nn as nn
+import torch.optim as optim
+import torch.backends.cudnn as cudnn
 import torchvision
+from torchvision import transforms
 from PIL import Image
 import numpy as np
-import tqdm
+from tqdm import tqdm
 from sklearn.cluster import KMeans
+from scipy.stats import ortho_group
 
 from utlis import set_args, set_optimizer
 from utlis import save_model
@@ -15,6 +19,7 @@ from utlis import AverageMeter
 from utlis import txt_logger
 from network.DECnetwork import DECNetwork
 from DEC_loss import DECLoss
+from data_utlis import SpatialDataset
 
 
 def costomize_args(args):
@@ -24,8 +29,22 @@ def costomize_args(args):
 def set_dataloader(args):
     """use args.dataset decide which dataset to use and return dataloader"""
     if args.dataset == 'mnist':
-        train_dataset = torchvision.datasets.MNIST(root=args.loading_path, train=True)
-        test_dataset = torchvision.datasets.MNIST(root=args.loading_path, train=False)
+        transform = transforms.Compose([
+            transforms.Resize((32, 32)),
+            transforms.ToTensor(),
+        ])
+        train_dataset = torchvision.datasets.MNIST(root=args.loading_path, train=True, download=True, 
+                            transform=transform)
+        test_dataset = torchvision.datasets.MNIST(root=args.loading_path, train=False, download=True, 
+                            transform=transform)
+    elif args.dataset == 'spatial':
+        transform = transforms.Compose([
+            transforms.Resize((32, 32)),
+            transforms.ToTensor(),
+        ])
+        train_dataset = SpatialDataset(args.data_root, args.data_file_name)
+        test_dataset = SpatialDataset(args.data_root, args.data_file_name)
+
     else:
         raise NotImplemented("dataset {} is not implemented.".format(args.dataset))
     # train loader
@@ -84,7 +103,7 @@ def pre_train(train_loader, model, epoch, args, optimizer, scheduler, pretrain_c
 
     losses = AverageMeter()
 
-    for idx, (img, _) in enumerate(train_loader):
+    for idx, (img, labels) in tqdm(enumerate(train_loader), total=len(train_loader)):
         img = img.cuda()
         bsz = img.shape[0]
 
@@ -102,7 +121,8 @@ def pre_train(train_loader, model, epoch, args, optimizer, scheduler, pretrain_c
         loss.backward()
         optimizer.step()
 
-    scheduler.step(loss)
+    if args.use_scheduler_pretrain:
+        scheduler.step(loss)
 
     return losses.avg
 
@@ -119,14 +139,13 @@ def train(train_loader, model, optimizer, epoch, args, scheduler, UnSup_criterio
 
     Y_assignment = []
     T_assignment = []
-    end = time.time()
     for idx, (img, labels) in tqdm(enumerate(train_loader), total=len(train_loader)):
         """params:
                 img: [bz, C, H, W]
                 labels: [bz,]
         """
         img = img.cuda()
-        labels = labels.cuda()
+        # labels = labels.cuda()
         bsz = img.shape[0]
 
         # compute probrability - p(y|a) dim: [bsz, |Y|]
@@ -146,8 +165,8 @@ def train(train_loader, model, optimizer, epoch, args, scheduler, UnSup_criterio
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        
-    scheduler.step(loss)
+    if args.lr_scheduling == 'reduce': # reduce on pleatau
+        scheduler.step(loss)
 
     # # compute H(Y|T) and I(Y;T)
     # # TODO: LOW PRIORITY!! use pytorch to implement H and MI calucalation
@@ -166,10 +185,10 @@ def main():
     args = costomize_args(args)
 
     train_loader, test_loader = set_dataloader(args)
-    model, UnSup_criterion, pretrain_criterion = get_model(args, scalar_logger)
-    optimizer, scheduler = set_optimizer(args, model)
 
     scalar_logger = txt_logger(args.saving_path, args, 'python ' + ' '.join(sys.argv))
+    model, UnSup_criterion, pretrain_criterion = get_model(args, scalar_logger)
+    optimizer, scheduler = set_optimizer(args, model)
 
     # training routine
     # resume model path
@@ -182,7 +201,7 @@ def main():
         # pre_train
         pre_train_optimizer = optim.Adam(model.parameters(), weight_decay=5e-4)
         pre_train_scheduler = optim.lr_scheduler.ReduceLROnPlateau(pre_train_optimizer, mode='min', factor=0.5, patience=20, verbose=True)
-        for epoch in range(start + 1, opt.pre_train_epochs + 1):
+        for epoch in range(start + 1, args.pre_train_epochs + 1):
             pre_train_loss = pre_train(train_loader, model, epoch, args, pre_train_optimizer, pre_train_scheduler, pretrain_criterion)
 
             scalar_logger.log_value(epoch, ('pre_train loss', pre_train_loss))
@@ -198,13 +217,24 @@ def main():
                 features.extend(feature.cpu().numpy())
 
         features = np.array(features)
+        features = features.reshape(features.shape[0], features.shape[1])
+        print(features.shape)
         k_means = KMeans(n_clusters=args.latent_class_num, n_init=20)
         k_means.fit(features)
         model.clusterCenterInitialization(k_means.cluster_centers_)
+
+    elif args.pretrain_mode == 'None':
+        # random othogonal init
+        if args.latent_class_num < args.feature_dim:
+            mu_init = ortho_group.rvs(dim=args.feature_dim)[:args.latent_class_num]
+        else:
+            mu_init = np.random.rand(args.latent_class_num, args.feature_dim)
+        model.clusterCenterInitialization(mu_init)
     else:
         raise NotImplementedError("pretrain mode {} has not been implemented.".format(args.pretrain_mode))
 
     # train
+    print("Begin Training -------------------------")
     for epoch in range(start + 1, args.epochs + 1):
         # train for one epoch
         loss, Y_assignment = train(train_loader, model, optimizer, epoch, args, scheduler, UnSup_criterion)
@@ -237,7 +267,7 @@ def main():
         args.saving_path, 'last.pth')
     save_model(model, optimizer, args, args.epochs, save_file)
 
-    return args.save_folder
+    return 
 
     
 if __name__ == '__main__':

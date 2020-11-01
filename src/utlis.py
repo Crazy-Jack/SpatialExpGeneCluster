@@ -1,8 +1,10 @@
 import argparse
-import os
+import os, sys
+import logging
 
 import torch
 import torch.nn as nn
+import torch.optim as optim
 import torchvision
 from PIL import Image
 import numpy as np
@@ -18,8 +20,8 @@ def set_args():
     parser.add_argument('--dataset', type=str, required=True, help="which dataset do you want")
     parser.add_argument('--data_root', type=str, default="../data/")
     parser.add_argument('--save_root', type=str, default="../train_related/")
-    
-
+    parser.add_argument('--save_freq', type=int, default=1, help="save freq of the model")
+    parser.add_argument('--data_file_name', type=str, default="data.npy", help="data file name")
     # train parameters
     parser.add_argument('--batch_size', type=int, default=256, help="batch")
     parser.add_argument('--num_workers', type=int, default=3, help="number of workers to use \
@@ -31,7 +33,7 @@ def set_args():
     parser.add_argument('--learning_rate', type=float, default=1e-3, help="learning rate for \
                                                                                     optimizer")
     parser.add_argument('--momentum', type=float, default=0.9, help="momentum")
-    parser.add_argument('--weight decay', type=float, default=1e-4, help='weight decay')
+    parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
     parser.add_argument('--schedular_patients', type=int, default=10, help='reduce on pleatau shceduling')
     parser.add_argument('--schedular_verbose', action='store_true', help="if print scheduling")
     parser.add_argument('--lr_scheduling', type=str, default='', help="optimizer scheduling type")
@@ -39,15 +41,17 @@ def set_args():
     # model
     parser.add_argument('--model', type=str, default='resnet18', help="what model we choose")
     parser.add_argument('--input_channel', type=int, default=7, help="input channels")
-    parser.add_argument('--feature_dim', type=int, default=2048, help="only support 2048 for now")
+    parser.add_argument('--feature_dim', type=int, default=128, help="only support 2048 for now")
     parser.add_argument('--latent_class_num', type=int, default=100)
 
     # pretrain
     parser.add_argument('--pretrain_mode', type=str, default="autoencoder")
+    parser.add_argument('--pre_train_epochs', type=int, default=100, help="pretraining epochs")
+    parser.add_argument('--use_scheduler_pretrain', type=str, default="if use scheduler for pretrain")
 
 
     # resume path
-    parser.add_argument('--resume_model_path', type=str, default='', help="resume model path")
+    parser.add_argument('--resume_model_path', action='store_true', help="resume model path")
     # parse args
     args = parser.parse_args()
     
@@ -80,7 +84,8 @@ class Process_args:
         # input path
         self.args.loading_path = os.path.join(self.data_root, dataset_name)
         # output path
-        self.args.saving_path = os.path.join(self.data_root, dataset_name)
+        self.args.saving_path = os.path.join(self.save_root, dataset_name)
+        os.makedirs(self.args.saving_path, exist_ok=True)
 
 
 def set_optimizer(args, model):

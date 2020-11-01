@@ -238,13 +238,13 @@ def ResNet18(img_channel=7, **kwargs):
 
 
 if __name__ == "__main__":
-    encoder = ResNet18().cuda()
-    input = torch.autograd.Variable(torch.randn(2, 7, 64, 64)).cuda()
+    encoder = ResNet18(img_channel=3).cuda()
+    input = torch.autograd.Variable(torch.randn(2, 3, 64, 64)).cuda()
     feat = encoder(input)
-    print("encoder outshape", encoder.shape_before_avgpool)
+    # print("encoder outshape", encoder.shape_before_avgpool)
     print("latent", feat.shape)
     encoder_shape_before_avgpool = (2048, 2, 2)
-    decoder = DecovResNet18(encoder_shape_before_avgpool).cuda()
+    decoder = DecovResNet18(encoder_shape_before_avgpool, img_channel=3).cuda()
     out_img = decoder(feat)
     print("out_img", out_img.shape)
     # test

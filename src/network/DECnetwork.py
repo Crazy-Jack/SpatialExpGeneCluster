@@ -40,17 +40,19 @@ class DECNetwork(nn.Module):
         super(DECNetwork, self).__init__()
         self.input_channel = input_channel
         self.latent_class_num = latent_class_num
-        self.layer_dims = layer_dims
-        self.decode_constraint = decode_constraint
         self.pretrainMode = True
         self.alpha = alpha
         self.clusterCenter = nn.Parameter(torch.zeros(latent_class_num, feature_dim))
 
-        self.encoder = ResNet18()
+        self.encoder = ResNet18(img_channel=input_channel)
+        print("define encoder in channel", input_channel)
         self.encoder_shape_before_avgpool = (2048, 1, 1) # for input size (bs, 7, 32, 32); \
                                                          # will be (2048, 2, 2) for input size (bs, 7, 64, 64)
-        
-        self.decoder = DecovResNet18(encoder_shape_before_avgpool, img_channel=input_channel)
+        self.fc1 = nn.Linear(2048, feature_dim)
+        self.relu1 = nn.ReLU()
+        self.fc2 = nn.Linear(feature_dim, 2048)
+        self.relu2 = nn.ReLU()
+        self.decoder = DecovResNet18(self.encoder_shape_before_avgpool, img_channel=input_channel)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
@@ -93,9 +95,14 @@ class DECNetwork(nn.Module):
         At pretrainMode: return latent_feature, reconstructed_input
         Not At pretrainMode: return latent_feature, p(Y|A)
         '''
-        feature = self.encoder(x) # [bsz, latent_dim]
+        # print("forward encoder x", x.shape)
+        x = self.encoder(x) 
+        # print(x.shape)
+        encoder_shape = x.shape
+        feature = self.relu1(self.fc1(x.reshape(-1, x.shape[1]))) # [bsz, latent_dim]
         if self.pretrainMode:
-            rec_x = self.decoder(feature)
+            rec_x = self.relu2(self.fc2(feature))
+            rec_x = self.decoder(rec_x.reshape(encoder_shape))
             return feature, rec_x
         else:
             # print("center shape: ", self.clusterCenter.shape)
