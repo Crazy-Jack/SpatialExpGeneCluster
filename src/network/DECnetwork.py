@@ -49,7 +49,6 @@ class DECNetwork(nn.Module):
         self.encoder_shape_before_avgpool = (2048, 1, 1) # for input size (bs, 7, 32, 32); \
                                                          # will be (2048, 2, 2) for input size (bs, 7, 64, 64)
         self.fc1 = nn.Linear(2048, feature_dim)
-        self.relu1 = nn.ReLU()
         self.fc2 = nn.Linear(feature_dim, 2048)
         self.relu2 = nn.ReLU()
         self.decoder = DecovResNet18(self.encoder_shape_before_avgpool, img_channel=input_channel)
@@ -96,10 +95,10 @@ class DECNetwork(nn.Module):
         Not At pretrainMode: return latent_feature, p(Y|A)
         '''
         # print("forward encoder x", x.shape)
-        x = self.encoder(x) 
+        x = self.encoder(x)
         # print(x.shape)
         encoder_shape = x.shape
-        feature = self.relu1(self.fc1(x.reshape(-1, x.shape[1]))) # [bsz, latent_dim]
+        feature = self.fc1(x.reshape(-1, x.shape[1])) # [bsz, latent_dim]
         if self.pretrainMode:
             rec_x = self.relu2(self.fc2(feature))
             rec_x = self.decoder(rec_x.reshape(encoder_shape))
