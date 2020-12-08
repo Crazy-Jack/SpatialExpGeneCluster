@@ -51,7 +51,7 @@ def set_args():
 
 
     # resume path
-    parser.add_argument('--resume_model_path', action='store_true', help="resume model path")
+    parser.add_argument('--resume_model_path', type=str, default='', help="resume model path")
     # parse args
     args = parser.parse_args()
     
@@ -71,7 +71,8 @@ class Process_args:
     def process(self, costomized_name=None):
         """process all sort of situation for args"""
         self.IO_path(costomized_name=costomized_name)
-
+        if self.args.resume_model_path:
+            self.resume_epoch()
         return self.args
 
 
@@ -86,6 +87,9 @@ class Process_args:
         # output path
         self.args.saving_path = os.path.join(self.save_root, dataset_name)
         os.makedirs(self.args.saving_path, exist_ok=True)
+
+    def resume_epoch(self):
+        self.args.pretrain_epoch = int(self.args.resume_model_path.split(".")[0].split("_")[-1])
 
 
 def set_optimizer(args, model):
