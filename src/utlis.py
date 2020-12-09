@@ -18,15 +18,18 @@ def set_args():
 
     # I/O related
     parser.add_argument('--dataset', type=str, required=True, help="which dataset do you want")
-    parser.add_argument('--data_root', type=str, default="../data/")
+    parser.add_argument('--data_root', type=str, default="../data/spatial_Exp/32-32")
     parser.add_argument('--save_root', type=str, default="../train_related/")
-    parser.add_argument('--save_freq', type=int, default=1, help="save freq of the model")
+    parser.add_argument('--save_freq', type=int, default=10, help="save freq of the model")
     parser.add_argument('--data_file_name', type=str, default="data.npy", help="data file name")
+    parser.add_argument('--experiment_name', type=str, default="test", help="costomized experiment name")
+    
     # train parameters
     parser.add_argument('--batch_size', type=int, default=256, help="batch")
     parser.add_argument('--num_workers', type=int, default=3, help="number of workers to use \
                                                                     for data loading")
-    parser.add_argument('--epochs', type=int, default=200, help="total epochs")
+    parser.add_argument('--epochs', type=int, default=500, help="total epochs")
+    parser.add_argument('--img_size', type=int, default=64, help="img size")
 
     # optimization parameters
     parser.add_argument('--optimizer', type=str, default='adam', help="which optimizer to use")
@@ -37,9 +40,10 @@ def set_args():
     parser.add_argument('--schedular_patients', type=int, default=10, help='reduce on pleatau shceduling')
     parser.add_argument('--schedular_verbose', action='store_true', help="if print scheduling")
     parser.add_argument('--lr_scheduling', type=str, default='', help="optimizer scheduling type")
+    parser.add_argument('--temp', type=float, default=0.1, help="temperature for training contrastive learning")
 
     # model
-    parser.add_argument('--model', type=str, default='resnet18', help="what model we choose")
+    parser.add_argument('--model', type=str, default='resnet50', help="what model we choose")
     parser.add_argument('--input_channel', type=int, default=7, help="input channels")
     parser.add_argument('--feature_dim', type=int, default=128, help="only support 2048 for now")
     parser.add_argument('--latent_class_num', type=int, default=100)
@@ -49,6 +53,9 @@ def set_args():
     parser.add_argument('--pre_train_epochs', type=int, default=100, help="pretraining epochs")
     parser.add_argument('--use_scheduler_pretrain', type=str, default="if use scheduler for pretrain")
 
+    # kmeans clustering
+    parser.add_argument('--k_clusters', type=int, default=100, help="kmeans clustering k")
+    parser.add_argument('--kmeans_freq', type=int, default=20, help="freq to perform kmeans clustering assignment")
 
     # resume path
     parser.add_argument('--resume_model_path', type=str, default='', help="resume model path")
@@ -67,6 +74,7 @@ class Process_args:
         self.dataset = args.dataset
         self.data_root = args.data_root
         self.save_root = args.save_root
+        self.experiment_name = args.experiment_name
     
     def process(self, costomized_name=None):
         """process all sort of situation for args"""
@@ -85,7 +93,8 @@ class Process_args:
         # input path
         self.args.loading_path = os.path.join(self.data_root, dataset_name)
         # output path
-        self.args.saving_path = os.path.join(self.save_root, dataset_name)
+        filename = f"{self.experiment_name}"
+        self.args.saving_path = os.path.join(self.save_root, dataset_name, filename)
         os.makedirs(self.args.saving_path, exist_ok=True)
 
     def resume_epoch(self):
