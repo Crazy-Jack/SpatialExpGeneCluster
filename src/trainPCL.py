@@ -36,7 +36,7 @@ parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 
 # I/O related
 parser.add_argument('--dataset', type=str, required=True, help="which dataset do you want")
-parser.add_argument('--data_root', type=str, default="../data/")
+parser.add_argument('--data_root', type=str, default="../data/spatial_Exp/32-32")
 parser.add_argument('--save_root', type=str, default="../train_related/")
 parser.add_argument('--save_freq', type=int, default=1, help="save freq of the model")
 parser.add_argument('--data_file_name', type=str, default="data.npy", help="data file name")
@@ -200,7 +200,7 @@ def main_worker(gpu, ngpus_per_node, args):
         torch.cuda.set_device(args.gpu)
         model = model.cuda(args.gpu)
         # comment out the following line for debugging
-        raise NotImplementedError("Only DistributedDataParallel is supported.")
+        # raise NotImplementedError("Only DistributedDataParallel is supported.")
     else:
         # AllGather implementation (batch shuffle, queue update, etc.) in
         # this code only supports DistributedDataParallel.

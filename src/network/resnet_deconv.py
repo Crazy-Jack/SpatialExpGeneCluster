@@ -99,7 +99,8 @@ class ResNet(nn.Module):
         x = self.layer3(x)
         x = self.layer4(x)
         # self.shape_before_avgpool = x.shape[1:]
-        x = self.avgpool(x)
+        x = self.avgpool(x).reshape(x.shape[:2])
+        # print("Resnet", x.shape)
         return x
 
 class DeconvBottleneck(nn.Module):
@@ -235,6 +236,38 @@ def ResNet50(img_channel=7, **kwargs):
 
 def ResNet18(img_channel=7, **kwargs):
     return ResNet(Bottleneck, [2, 2, 2, 2], img_channel)
+
+model_dict = {
+    'resnet18': [ResNet18, 2048],
+    'resnet50': [ResNet50, 2048],
+}
+
+
+class SupConResNet(nn.Module):
+    """backbone + projection head"""
+    def __init__(self, name='resnet50', head='mlp', feat_dim=128, img_channel=1):
+        super(SupConResNet, self).__init__()
+        
+        model_fun, dim_in = model_dict[name]
+        self.encoder_out_dim = dim_in
+        self.encoder = model_fun(img_channel=img_channel)
+        if head == 'linear':
+            self.head = nn.Linear(dim_in, feat_dim)
+        elif head == 'mlp':
+            self.head = nn.Sequential(
+                nn.Linear(dim_in, dim_in),
+                nn.ReLU(inplace=True),
+                nn.Linear(dim_in, feat_dim)
+            )
+        else:
+            raise NotImplementedError(
+                'head not supported: {}'.format(head))
+
+    def forward(self, x):
+        feat = self.encoder(x)
+        feat = F.normalize(self.head(feat), dim=1)
+        return feat
+
 
 
 if __name__ == "__main__":
