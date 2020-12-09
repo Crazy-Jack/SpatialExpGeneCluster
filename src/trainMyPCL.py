@@ -17,6 +17,7 @@ from utlis import set_args, set_optimizer
 from utlis import save_model
 from utlis import AverageMeter
 from utlis import txt_logger
+from utlis import adjust_learning_rate
 from network.resnet_deconv import SupConResNet
 from losses import SupConLoss
 from data_utlis import SpatialDataset
@@ -195,6 +196,8 @@ def main():
     losses = []
     print("Begin Training -------------------------")
     for epoch in range(start + 1, args.epochs + 1):
+        # adj learning rate
+        adjust_learning_rate(args, optimizer, epoch)
         # train for one epoch
         loss = train(train_loader, model, optimizer, epoch, args, scheduler, criterion, label_store)
         losses.append(loss)

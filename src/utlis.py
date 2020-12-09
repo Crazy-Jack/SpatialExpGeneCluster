@@ -33,13 +33,15 @@ def set_args():
 
     # optimization parameters
     parser.add_argument('--optimizer', type=str, default='adam', help="which optimizer to use")
-    parser.add_argument('--learning_rate', type=float, default=1e-3, help="learning rate for \
-                                                                                    optimizer")
+    parser.add_argument('--learning_rate', type=float, default=1e-3, help="learning rate for optimizer")
+    parser.add_argument('--min_lr', type=float, default=1e-5, help='SGD min learning rate')
     parser.add_argument('--momentum', type=float, default=0.9, help="momentum")
     parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
     parser.add_argument('--schedular_patients', type=int, default=10, help='reduce on pleatau shceduling')
     parser.add_argument('--schedular_verbose', action='store_true', help="if print scheduling")
     parser.add_argument('--lr_scheduling', type=str, default='', help="optimizer scheduling type")
+    parser.add_argument('--warmup_percent', type=float, default=0.33,
+                        help='percent of epochs that used for warmup')
     parser.add_argument('--temp', type=float, default=0.1, help="temperature for training contrastive learning")
 
     # model
@@ -99,6 +101,52 @@ class Process_args:
 
     def resume_epoch(self):
         self.args.pretrain_epoch = int(self.args.resume_model_path.split(".")[0].split("_")[-1])
+
+
+def adjust_learning_rate(args, optimizer, epoch):
+    lr = args.learning_rate
+    if args.lr_scheduling == 'adam':
+        return None
+    elif args.lr_scheduling == 'cosine':
+        eta_min = lr * (args.lr_decay_rate ** 3)
+
+        lr = eta_min + (lr - eta_min) * (
+                1 + math.cos(math.pi * epoch / args.epochs)) / 2
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
+    elif args.lr_scheduling == 'exp_decay':
+        if epoch == 1:
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = max(lr, args.min_lr)
+        else:
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = max(param_group['lr'] * args.exp_decay_rate, args.min_lr)
+
+    elif args.lr_scheduling == 'warmup':
+        assert args.learning_rate >= args.min_lr, "learning rate should >= min lr"
+        warmup_epochs = int(args.epochs * args.warmup_percent)
+        up_slope = (args.learning_rate - args.min_lr) / warmup_epochs
+        down_slope = (args.learning_rate - args.min_lr) / (args.epochs - warmup_epochs)
+        if epoch <= warmup_epochs:
+            lr = args.min_lr + up_slope * epoch
+        else:
+            # lr = args.learning_rate - slope * (epoch - warmup_epochs)
+            eta_min = args.learning_rate * (args.lr_decay_rate ** 3)
+
+            lr = eta_min + (args.learning_rate - eta_min) * (
+                1 + math.cos(math.pi * (epoch - warmup_epochs) / (args.epochs - warmup_epochs))) / 2
+
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = max(lr, args.min_lr)
+
+
+    else:
+        steps = np.sum(epoch > np.asarray(args.lr_decay_epochs))
+        if steps > 0:
+            lr = lr * (args.lr_decay_rate ** steps)
+
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = lr
 
 
 def set_optimizer(args, model):
