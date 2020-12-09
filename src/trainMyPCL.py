@@ -163,7 +163,7 @@ def kmean_cluster(args, model, k, train_loader, label_store):
 
     # print("idx max{} min {}; label_store {}".format(idxs.max(), idxs.min(), label_store.shape))
     label_store[idxs] = new_labels
-
+    print(f"Done clustering (cluster loss) {kmeans_loss} ------------")
     return label_store, centers, kmeans_loss
 
 
@@ -214,7 +214,7 @@ def main():
             # save loss
             np.save(os.path.join(args.saving_path, "train_loss.npy"), losses)
             # save latent class assignment
-            save_file_lat_class_assign = os.path.join(args.saving_path, 'latent_class.npy')
+            save_file_lat_class_assign = os.path.join(args.saving_path, 'latent_class_{}.npy'.format(epoch+1))
             np.save(save_file_lat_class_assign, label_store)
             # log latent class
             unique_latent_class = np.unique(label_store)

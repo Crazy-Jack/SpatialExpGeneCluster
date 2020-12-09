@@ -20,7 +20,7 @@ def set_args():
     parser.add_argument('--dataset', type=str, required=True, help="which dataset do you want")
     parser.add_argument('--data_root', type=str, default="../data/spatial_Exp/32-32")
     parser.add_argument('--save_root', type=str, default="../train_related/")
-    parser.add_argument('--save_freq', type=int, default=10, help="save freq of the model")
+    parser.add_argument('--save_freq', type=int, default=20, help="save freq of the model")
     parser.add_argument('--data_file_name', type=str, default="data.npy", help="data file name")
     parser.add_argument('--experiment_name', type=str, default="test", help="costomized experiment name")
     
